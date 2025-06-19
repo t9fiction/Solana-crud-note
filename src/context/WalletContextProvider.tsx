@@ -12,15 +12,7 @@ import {
   TorusWalletAdapter,
 } from "@solana/wallet-adapter-wallets";
 import { clusterApiUrl } from "@solana/web3.js";
-import dynamic from "next/dynamic";
 
-const DynamicWalletMultiButton = dynamic(
-  () =>
-    import("@solana/wallet-adapter-react-ui").then(
-      (mod) => mod.WalletMultiButton
-    ),
-  { ssr: false }
-);
 
 interface WalletContextProviderProps {
   children: ReactNode;
@@ -50,7 +42,6 @@ const WalletContextProvider: React.FC<WalletContextProviderProps> = ({
     <ConnectionProvider endpoint={endpoint}>
       <WalletProvider wallets={wallets} autoConnect={false}>
         <WalletModalProvider>
-          <DynamicWalletMultiButton />
           {children}
         </WalletModalProvider>
       </WalletProvider>
