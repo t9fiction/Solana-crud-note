@@ -1,3 +1,4 @@
+@import "@solana/wallet-adapter-react-ui/styles.css";
 @import "tailwindcss";
 
 :root {
@@ -5,6 +6,7 @@
   --foreground: #171717;
 }
 
+/* Other global styles */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
