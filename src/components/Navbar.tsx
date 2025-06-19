@@ -41,7 +41,7 @@ const Navbar: React.FC = () => {
       style={{ backgroundColor: 'color-mix(in srgb, var(--background) 80%, transparent)', backdropFilter: 'blur(8px)' }}
     >
       {/* Main navbar container with visible padding */}
-      <div className="mx-auto flex items-center justify-between h-16 !px-8 sm:!px-12 lg:!px-16 bg-background">
+      <div className="mx-auto flex items-center justify-between h-16 !px-8 sm:!px-12 lg:!px-16 bg-background border-b">
         {/* Left side: Logo */}
         <div className="flex items-center">
           <Link href="/" className="flex items-center space-x-2 text-xl font-bold hover:opacity-90 transition-opacity">
@@ -61,7 +61,7 @@ const Navbar: React.FC = () => {
             <Link
               key={link.href}
               href={link.href}
-              className="px-6 py-3 rounded-md text-sm font-medium transition-all duration-200 bg-gray-300/30"
+              className="!px-6 !py-3 rounded-md text-sm font-medium transition-all duration-200 "
               style={{
                 color: isActiveLink(link.href) ? 'var(--primary)' : 'var(--secondary)',
                 backgroundColor: isActiveLink(link.href)
