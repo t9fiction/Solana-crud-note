@@ -3,7 +3,18 @@ import { IDL, PROGRAM_ID } from "@/constants";
 import { AnchorProvider, Program, Idl } from "@project-serum/anchor";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { PublicKey, SystemProgram } from "@solana/web3.js";
-import React from "react";
+import React, { useEffect } from "react";
+import Swal from "sweetalert2";
+
+// Define Note type with publicKey for unique key
+interface Note {
+  publicKey: PublicKey;
+  author: PublicKey;
+  title: string;
+  content: string;
+  created_at: number;
+  last_updated: number;
+}
 
 const Hero = () => {
   const { connection } = useConnection();
@@ -13,17 +24,25 @@ const Hero = () => {
   const [loading, setLoading] = React.useState<boolean>(false);
   const [title, setTitle] = React.useState<string>("");
   const [content, setContent] = React.useState<string>("");
-  const [error, setError] = React.useState<string | null>(null);
-  const [msg, setMsg] = React.useState<string | null>(null);
+  // const [error, setError] = React.useState<string | null>(null);
+  const [editingNote, setEditingNote] = React.useState<Note | null>(null);
+  const [editContent, setEditContent] = React.useState<string>("");
+  const [deleteConfirm, setDeleteConfirm] = React.useState<Note | null>(null);
+  const [isSubmitting, setIsSubmitting] = React.useState<boolean>(false);
 
   const getProgram = async () => {
     if (!wallet.publicKey || !wallet.signTransaction) {
+      Swal.fire({
+        icon: "error",
+        title: "Wallet Not Connected",
+        text: "Please connect your wallet to use this app.",
+        confirmButtonColor: "#2563eb",
+      });
       return null;
     }
     const provider = new AnchorProvider(
       connection,
       wallet as unknown as AnchorProvider["wallet"],
-      //   AnchorProvider.defaultOptions()
       {}
     );
     return new Program(IDL as Idl, PROGRAM_ID, provider);
@@ -43,28 +62,29 @@ const Hero = () => {
   // Function to Load Notes
   const loadNotes = async () => {
     const program = await getProgram();
-    console.log(program, "Program");
     if (!program) return;
 
     setLoading(true);
-    setNotes([]); // Clear previous notes
+    Swal.fire({
+      title: "Loading Notes",
+      text: "Please wait while we fetch your notes...",
+      allowOutsideClick: false,
+      didOpen: () => {
+        Swal.showLoading();
+      },
+    });
+    setNotes([]);
     try {
-      /**
-       * Following will fetch all notes
-       * const notes = await program.account.note.all();
-       */
-
-      // Fetch and Filter notes by the user's public key
       const _notes = await program.account.note.all([
         {
           memcmp: {
-            offset: 8, // Skip the discriminator
-            bytes: wallet.publicKey ? wallet.publicKey.toBase58() : "", // Filter by the user's public key
+            offset: 8,
+            bytes: wallet.publicKey ? wallet.publicKey.toBase58() : "",
           },
         },
       ]);
-      // Map the notes to match the Note type
       const formattedNotes: Note[] = _notes.map((note) => ({
+        publicKey: note.publicKey,
         author: note.account.author,
         title: note.account.title,
         content: note.account.content,
@@ -72,14 +92,20 @@ const Hero = () => {
         last_updated: note.account.lastUpdated.toNumber(),
       }));
       setNotes(formattedNotes);
-      console.log("Notes:", formattedNotes);
+      Swal.close();
     } catch (error) {
       console.error("Error loading notes:", error);
-      setError("Failed to load notes. Please try again later.");
+      Swal.close();
     }
     setLoading(false);
   };
 
+  useEffect(() => {
+    // Load notes when the component mounts
+    if (wallet.connected) {
+      loadNotes();
+    }
+  }, [wallet.connected]);
   // Function to create a note
   const createNote = async () => {
     const program = await getProgram();
@@ -88,28 +114,53 @@ const Hero = () => {
       return null;
     }
     if (!title.trim() || !content.trim()) {
-      // Check if title and content are provided
-      setError("Title and content are required to create a note.");
+      Swal.fire({
+        icon: "error",
+        title: "Missing Fields",
+        text: "Title and content are required to create a note.",
+        confirmButtonColor: "#2563eb",
+      });
       return;
     }
     if (title.length > 100) {
-      // Check if title exceeds 100 characters
-      setError("Title must be less than 100 characters.");
+      Swal.fire({
+        icon: "error",
+        title: "Title Too Long",
+        text: "Title must be less than 100 characters.",
+        confirmButtonColor: "#2563eb",
+      });
       return;
     }
     if (content.length > 1000) {
-      // Check if content exceeds 1000 characters
-      setError("Content must be less than 1000 characters.");
+      Swal.fire({
+        icon: "error",
+        title: "Content Too Long",
+        text: "Content must be less than 1000 characters.",
+        confirmButtonColor: "#2563eb",
+      });
       return;
     }
 
     try {
       const noteAddress = await getNoteAddress(title);
       if (!noteAddress) {
-        setError("Failed to get note address.");
+        Swal.fire({
+          icon: "error",
+          title: "Error",
+          text: "Failed to get note address.",
+          confirmButtonColor: "#2563eb",
+        });
         return;
       }
-      const tx = await program.methods
+      Swal.fire({
+        title: "Creating Note",
+        text: "Please wait while your note is being created...",
+        allowOutsideClick: false,
+        didOpen: () => {
+          Swal.showLoading();
+        },
+      });
+      await program.methods
         .createNote(title, content)
         .accounts({
           author: wallet.publicKey,
@@ -117,256 +168,417 @@ const Hero = () => {
           systemProgram: SystemProgram.programId,
         })
         .rpc();
-      setMsg("Note created successfully!");
-      console.log("Transaction Signature:", tx);
-      setTitle(""); // Clear title input
-      setContent(""); // Clear content input
-      setError(null); // Clear any previous error
-      await loadNotes(); // Reload notes after creation
+      Swal.fire({
+        icon: "success",
+        title: "Success",
+        text: "Note created successfully!",
+        confirmButtonColor: "#2563eb",
+      });
+      setTitle("");
+      setContent("");
+      await loadNotes();
     } catch (error) {
       console.error("Error creating note:", error);
-      setError("Failed to create note. Please try again later.");
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "Failed to create note. Please try again later.",
+        confirmButtonColor: "#2563eb",
+      });
     }
   };
 
   // Function to update a note
-  const updateNote = async (note: any, content: string) => {
+  const updateNote = async (note: Note, content: string) => {
     const program = await getProgram();
     if (!program) return;
     if (!wallet.publicKey || !wallet.signTransaction) {
       return null;
     }
     if (!content.trim()) {
-      setError("Content is required to update a note.");
+      Swal.fire({
+        icon: "error",
+        title: "Missing Content",
+        text: "Content is required to update a note.",
+        confirmButtonColor: "#2563eb",
+      });
       return;
     }
     if (content.length > 1000) {
-      setError("Content must be less than 1000 characters.");
+      Swal.fire({
+        icon: "error",
+        title: "Content Too Long",
+        text: "Content must be less than 1000 characters.",
+        confirmButtonColor: "#2563eb",
+      });
       return;
     }
 
     setLoading(true);
+    Swal.fire({
+      title: "Updating Note",
+      text: "Please wait while your note is being updated...",
+      allowOutsideClick: false,
+      didOpen: () => {
+        Swal.showLoading();
+      },
+    });
 
     try {
-      const noteAddress = await getNoteAddress(note.account.title);
+      const noteAddress = await getNoteAddress(note.title);
       if (!noteAddress) {
-        setError("Failed to get note address.");
+        Swal.fire({
+          icon: "error",
+          title: "Error",
+          text: "Failed to get note address.",
+          confirmButtonColor: "#2563eb",
+        });
         return;
       }
-      const tx = await program.methods.updateNote(content).accounts({
-        author: wallet.publicKey,
-        note: noteAddress,
-      }).rpc();
-
-      setMsg("Note updated successfully!");
-      setContent(""); // Clear content input
-      setError(null); // Clear any previous error
-      await loadNotes(); // Reload notes after update
-      console.log("Transaction Signature:", tx);
+      await program.methods
+        .updateNote(content)
+        .accounts({
+          author: wallet.publicKey,
+          note: noteAddress,
+        })
+        .rpc();
+      Swal.fire({
+        icon: "success",
+        title: "Success",
+        text: "Note updated successfully!",
+        confirmButtonColor: "#2563eb",
+      });
+      setContent("");
+      await loadNotes();
     } catch (error) {
       console.error("Error updating note:", error);
-      setError("Failed to update note. Please try again later.");
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "Failed to update note. Please try again later.",
+        confirmButtonColor: "#2563eb",
+      });
     }
     setLoading(false);
   };
-  
 
   // Function to delete a note
-  const deleteNote = async (note: any) => {
+  const deleteNote = async (note: Note) => {
     const program = await getProgram();
     if (!program) return;
     if (!wallet.publicKey || !wallet.signTransaction) {
       return null;
     }
-    
+
     setLoading(true);
+    Swal.fire({
+      title: "Deleting Note",
+      text: "Please wait while your note is being deleted...",
+      allowOutsideClick: false,
+      didOpen: () => {
+        Swal.showLoading();
+      },
+    });
 
     try {
-      const noteAddress = await getNoteAddress(note.account.title);
+      const noteAddress = await getNoteAddress(note.title);
       if (!noteAddress) {
-        setError("Failed to get note address.");
+        Swal.fire({
+          icon: "error",
+          title: "Error",
+          text: "Failed to get note address.",
+          confirmButtonColor: "#2563eb",
+        });
         return;
       }
-      const tx = await program.methods.deleteNote().accounts({
-        author: wallet.publicKey,
-        note: noteAddress,
-      }).rpc();
-      setMsg("Note deleted successfully!");
-      setError(null); // Clear any previous error
-      await loadNotes(); // Reload notes after deletion
-
-      console.log(tx)
-    }catch (error) {
+      await program.methods
+        .deleteNote()
+        .accounts({
+          author: wallet.publicKey,
+          note: noteAddress,
+        })
+        .rpc();
+      Swal.fire({
+        icon: "success",
+        title: "Success",
+        text: "Note deleted successfully!",
+        confirmButtonColor: "#2563eb",
+      });
+      await loadNotes();
+    } catch (error) {
       console.error("Error deleting note:", error);
-      setError("Failed to delete note. Please try again later.");
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "Failed to delete note. Please try again later.",
+        confirmButtonColor: "#2563eb",
+      });
     }
     setLoading(false);
   };
 
-  console.log("Notes", notes);
+  // Handle create note submission with loading state
+  const handleCreateNote = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    await createNote();
+    setIsSubmitting(false);
+  };
+
   return (
-    <div className="max-w-4xl mx-auto p-6 bg-background text-foreground">
-      <h1 className="text-4xl font-bold mb-4 text-foreground">
-        Welcome to the Solana Notes App
-      </h1>
-      <p className="text-lg mb-6 text-secondary">
-        This app allows you to create, update, and delete notes on the Solana
-        blockchain.
-      </p>
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 text-gray-900 dark:text-gray-100">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <header className="text-center mb-12">
+          <h1 className="text-4xl sm:text-5xl font-bold tracking-tight">
+            Solana Notes
+          </h1>
+          <p className="mt-4 text-lg text-gray-600 dark:text-gray-400">
+            Securely manage your notes on the Solana blockchain
+          </p>
+        </header>
 
-      {/* Wallet Connection Check */}
-      {!wallet.connected && (
-        <div className="mb-6 p-4 bg-yellow-50 border border-yellow-300 rounded text-yellow-800">
-          <p>Please connect your wallet to use this app.</p>
-        </div>
-      )}
-
-      {/* Error/Success Messages */}
-      {error && (
-        <div className="mb-4 p-4 bg-red-50 border border-error rounded">
-          <p className="text-error">{error}</p>
-          <button
-            onClick={() => setError(null)}
-            className="mt-2 text-sm text-error underline hover:no-underline"
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
-
-      {msg && (
-        <div className="mb-4 p-4 bg-green-50 border border-success rounded">
-          <p className="text-success">{msg}</p>
-          <button
-            onClick={() => setMsg(null)}
-            className="mt-2 text-sm text-success underline hover:no-underline"
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
-
-      {/* Create Note Form */}
-      <div className="mb-8 p-6 border border-secondary rounded-lg shadow-sm bg-gray-50/50">
-        <h2 className="text-2xl font-semibold mb-4 text-foreground">
-          Create New Note
-        </h2>
-
-        <div className="space-y-4">
-          <div>
-            <label
-              htmlFor="title"
-              className="block text-sm font-medium mb-2 text-foreground"
-            >
-              Title <span className="text-error">*</span>
-            </label>
-            <input
-              id="title"
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Enter note title (max 100 characters)"
-              maxLength={100}
-              className="w-full px-3 py-2 border border-secondary rounded-md bg-background text-foreground placeholder-secondary focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-colors"
-            />
-            <p className="text-sm mt-1 text-secondary">
-              {title.length}/100 characters
+        {/* Wallet Connection Check */}
+        {!wallet.connected && (
+          <div className="mb-8 p-6 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded-lg shadow-sm">
+            <p className="text-yellow-800 dark:text-yellow-200">
+              Please connect your wallet to use this app.
             </p>
           </div>
+        )}
 
-          <div>
-            <label
-              htmlFor="content"
-              className="block text-sm font-medium mb-2 text-foreground"
+        {/* Create Note Form */}
+        <section className="mb-12 bg-white dark:bg-gray-800 p-8 rounded-lg shadow-lg">
+          <h2 className="text-2xl font-semibold mb-6">Create New Note</h2>
+          <form onSubmit={handleCreateNote} className="space-y-6">
+            <div>
+              <label
+                htmlFor="create-title"
+                className="block text-sm font-medium mb-2"
+              >
+                Title <span className="text-red-500">*</span>
+              </label>
+              <input
+                id="create-title"
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Enter note title (max 100 chars)"
+                maxLength={100}
+                className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 transition-all duration-200"
+                disabled={isSubmitting || !wallet.connected}
+              />
+              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                {title.length}/100 characters
+              </p>
+            </div>
+            <div>
+              <label
+                htmlFor="create-content"
+                className="block text-sm font-medium mb-2"
+              >
+                Content <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                id="create-content"
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                placeholder="Enter note content (max 1000 chars)"
+                maxLength={1000}
+                rows={5}
+                className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 resize-y transition-all duration-200"
+                disabled={isSubmitting || !wallet.connected}
+              />
+              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                {content.length}/1000 characters
+              </p>
+            </div>
+            <button
+              type="submit"
+              disabled={isSubmitting || !wallet.connected || !title.trim() || !content.trim()}
+              className="w-full sm:w-auto px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-200"
             >
-              Content <span className="text-error">*</span>
-            </label>
-            <textarea
-              id="content"
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              placeholder="Enter note content (max 1000 characters)"
-              maxLength={1000}
-              rows={5}
-              className="w-full px-3 py-2 border border-secondary rounded-md bg-background text-foreground placeholder-secondary focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-vertical transition-colors"
-            />
-            <p className="text-sm mt-1 text-secondary">
-              {content.length}/1000 characters
-            </p>
+              {isSubmitting ? "Creating..." : "Create Note"}
+            </button>
+          </form>
+        </section>
+
+        {/* Load Notes Section */}
+        <section>
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-semibold">Your Notes</h2>
+            <button
+              onClick={loadNotes}
+              disabled={isSubmitting || !wallet.connected}
+              className="px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-200"
+            >
+              {loading ? "Loading..." : "Load Notes"}
+            </button>
           </div>
 
-          <button
-            onClick={createNote}
-            disabled={!wallet.connected || !title.trim() || !content.trim()}
-            className="px-6 py-2 text-white rounded-md transition-colors disabled:cursor-not-allowed bg-success hover:bg-success/90 disabled:bg-secondary disabled:opacity-50"
-          >
-            Create Note
-          </button>
-        </div>
-      </div>
-
-      {/* Load Notes Section */}
-      <div className="mb-6">
-        <div className="flex items-center gap-4 mb-4">
-          <h2 className="text-2xl font-semibold text-foreground">Your Notes</h2>
-          <button
-            onClick={loadNotes}
-            disabled={!wallet.connected}
-            className="px-4 py-2 text-white rounded-md transition-colors disabled:cursor-not-allowed bg-primary hover:bg-primary/90 disabled:bg-secondary disabled:opacity-50"
-          >
-            {loading ? "Loading..." : "Load Notes"}
-          </button>
-        </div>
-
-        {/* Notes Display */}
-        <div className="mt-6">
-          {loading && (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-              <p className="ml-3 text-secondary">Loading notes...</p>
-            </div>
-          )}
-
-          {!loading && notes.length === 0 && wallet.connected && (
-            <div className="text-center py-8 text-secondary">
-              <p>No notes found. Create your first note above!</p>
-            </div>
-          )}
-
-          {!loading && notes.length > 0 && (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {notes.map((note, index) => (
-                <div
-                  key={index}
-                  className="p-4 border border-secondary rounded-lg shadow-sm bg-white/5 backdrop-blur-sm hover:shadow-md hover:bg-white/10 transition-all duration-200"
-                >
-                  <h3 className="text-xl font-semibold mb-2 text-foreground">
-                    {note.title}
-                  </h3>
-                  <p className="mb-3 line-clamp-3 text-foreground">
-                    {note.content}
-                  </p>
-                  <div className="text-sm space-y-1 text-secondary">
-                    <p>Author: {note.author.toBase58().slice(0, 8)}...</p>
-                    <p>
-                      Created:{" "}
-                      {new Date(note.created_at * 1000).toLocaleString()}
+          {/* Notes Display */}
+          <div className="mt-6">
+            {loading && (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-blue-600"></div>
+                <p className="ml-3 text-gray-600 dark:text-gray-400">
+                  Loading notes...
+                </p>
+              </div>
+            )}
+            {!loading && notes.length === 0 && wallet.connected && (
+              <div className="text-center py-12 text-gray-600 dark:text-gray-400">
+                <p>No notes found. Create your first note above!</p>
+              </div>
+            )}
+            {!loading && notes.length > 0 && (
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                {notes.map((note) => (
+                  <div
+                    key={note.publicKey.toBase58()}
+                    className="p-6 bg-white dark:bg-gray-800 rounded-lg shadow-sm hover:shadow-md transition-all duration-200"
+                  >
+                    <h3 className="text-xl font-semibold mb-3 line-clamp-1">
+                      {note.title}
+                    </h3>
+                    <p className="mb-4 text-gray-600 dark:text-gray-400 line-clamp-3">
+                      {note.content}
                     </p>
-                    <p>
-                      Updated:{" "}
-                      {new Date(note.last_updated * 1000).toLocaleString()}
-                    </p>
+                    <div className="text-sm text-gray-500 dark:text-gray-400 space-y-1">
+                      <p>Author: {note.author.toBase58().slice(0, 8)}...</p>
+                      <p>
+                        Created: {new Date(note.created_at * 1000).toLocaleString()}
+                      </p>
+                      <p>
+                        Updated: {new Date(note.last_updated * 1000).toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="mt-4 flex gap-3">
+                      <button
+                        onClick={() => {
+                          setEditingNote(note);
+                          setEditContent(note.content);
+                        }}
+                        disabled={isSubmitting || !wallet.connected}
+                        className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-200"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => setDeleteConfirm(note)}
+                        disabled={isSubmitting || !wallet.connected}
+                        className="flex-1 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-200"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
 
-      <p className="mt-8 text-sm text-center text-secondary">
-        Note: Ensure your wallet is connected to the Solana network.
-      </p>
+        {/* Update Note Modal */}
+        {editingNote && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+            <div className="bg-white dark:bg-gray-800 p-8 rounded-lg max-w-lg w-full shadow-xl">
+              <h3 className="text-2xl font-semibold mb-6">
+                Edit Note: {editingNote.title}
+              </h3>
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  setIsSubmitting(true);
+                  await updateNote(editingNote, editContent);
+                  setIsSubmitting(false);
+                  setEditingNote(null);
+                  setEditContent("");
+                }}
+                className="space-y-6"
+              >
+                <div>
+                  <label
+                    htmlFor="edit-content"
+                    className="block text-sm font-medium mb-2"
+                  >
+                    Content <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    id="edit-content"
+                    value={editContent}
+                    onChange={(e) => setEditContent(e.target.value)}
+                    placeholder="Enter new content (max 1000 chars)"
+                    maxLength={1000}
+                    rows={5}
+                    className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 resize-y transition-all duration-200"
+                    disabled={isSubmitting}
+                  />
+                  <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                    {editContent.length}/1000 characters
+                  </p>
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    type="submit"
+                    disabled={isSubmitting || !editContent.trim()}
+                    className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-200"
+                  >
+                    {isSubmitting ? "Updating..." : "Update Note"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingNote(null);
+                      setEditContent("");
+                    }}
+                    className="flex-1 px-4 py-3 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 transition-all duration-200"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Confirmation Modal */}
+        {deleteConfirm && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+            <div className="bg-white dark:bg-gray-800 p-8 rounded-lg max-w-lg w-full shadow-xl">
+              <h3 className="text-2xl font-semibold mb-6">
+                Delete Note: {deleteConfirm.title}
+              </h3>
+              <p className="mb-6 text-gray-600 dark:text-gray-400">
+                Are you sure you want to delete this note? This action cannot be undone.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={async () => {
+                    setIsSubmitting(true);
+                    await deleteNote(deleteConfirm);
+                    setIsSubmitting(false);
+                    setDeleteConfirm(null);
+                  }}
+                  disabled={isSubmitting}
+                  className="flex-1 px-4 py-3 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-200"
+                >
+                  {isSubmitting ? "Deleting..." : "Confirm Delete"}
+                </button>
+                <button
+                  onClick={() => setDeleteConfirm(null)}
+                  className="flex-1 px-4 py-3 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 transition-all duration-200"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <footer className="mt-12 text-center text-sm text-gray-500 dark:text-gray-400">
+          Ensure your wallet is connected to the Solana network.
+        </footer>
+      </div>
     </div>
   );
 };
