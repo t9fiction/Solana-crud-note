@@ -24,11 +24,11 @@ const Hero = () => {
   const [loading, setLoading] = React.useState<boolean>(false);
   const [title, setTitle] = React.useState<string>("");
   const [content, setContent] = React.useState<string>("");
-  // const [error, setError] = React.useState<string | null>(null);
   const [editingNote, setEditingNote] = React.useState<Note | null>(null);
   const [editContent, setEditContent] = React.useState<string>("");
   const [deleteConfirm, setDeleteConfirm] = React.useState<Note | null>(null);
   const [isSubmitting, setIsSubmitting] = React.useState<boolean>(false);
+  const [view, setView] = React.useState<"notes" | "create">("notes");
 
   const getProgram = async () => {
     if (!wallet.publicKey || !wallet.signTransaction) {
@@ -101,11 +101,15 @@ const Hero = () => {
   };
 
   useEffect(() => {
-    // Load notes when the component mounts
-    if (wallet.connected) {
+    if (wallet.connected && wallet.publicKey) {
       loadNotes();
+      setView("notes"); // Ensure notes view is shown on connect
+    } else {
+      setNotes([]);
+      setView("notes"); // Default to notes view when disconnected
     }
-  }, [wallet.connected]);
+  }, [wallet.connected, wallet.publicKey?.toBase58()]);
+
   // Function to create a note
   const createNote = async () => {
     const program = await getProgram();
@@ -176,6 +180,7 @@ const Hero = () => {
       });
       setTitle("");
       setContent("");
+      setView("notes"); // Return to notes view after creation
       await loadNotes();
     } catch (error) {
       console.error("Error creating note:", error);
@@ -346,137 +351,155 @@ const Hero = () => {
           </div>
         )}
 
+        {/* Notes or Create Form based on view state */}
+        {wallet.connected && view === "notes" && (
+          <section>
+            <div className="flex items-center justify-between !mb-6 !py-2">
+              <h2 className="text-2xl font-semibold">Your Notes</h2>
+              <button
+                onClick={() => setView("create")}
+                disabled={isSubmitting}
+                className="!px-6 !py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-200"
+              >
+                Create Note
+              </button>
+            </div>
+
+            {/* Notes Display */}
+            <div className="mt-6">
+              {loading && (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-blue-600"></div>
+                  <p className="ml-3 text-gray-600 dark:text-gray-400">
+                    Loading notes...
+                  </p>
+                </div>
+              )}
+              {!loading && notes.length === 0 && (
+                <div className="text-center !py-12 text-gray-600 dark:text-gray-400">
+                  <p>No notes found. Click &quot;Create Note&quot; to add your first note!</p>
+                </div>
+              )}
+              {!loading && notes.length > 0 && (
+                <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                  {notes.map((note) => (
+                    <div
+                      key={note.publicKey.toBase58()}
+                      className="!p-6 bg-gray-800 rounded-lg shadow-sm hover:shadow-md transition-all duration-200"
+                    >
+                      <h3 className="text-xl font-semibold !mb-3 line-clamp-1">
+                        {note.title}
+                      </h3>
+                      <p className="!mb-4 text-gray-600 dark:text-gray-400 !line-clamp-3">
+                        {note.content}
+                      </p>
+                      <div className="text-sm text-gray-500 dark:text-gray-400 space-y-1">
+                        <p className="text-primary">Author: {note.author.toBase58().slice(0, 8)}...</p>
+                        <p>
+                          Created: {new Date(note.created_at * 1000).toLocaleString()}
+                        </p>
+                        <p>
+                          Updated: {new Date(note.last_updated * 1000).toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="!mt-4 flex !gap-3">
+                        <button
+                          onClick={() => {
+                            setEditingNote(note);
+                            setEditContent(note.content);
+                          }}
+                          disabled={isSubmitting}
+                          className="flex-1 !px-4 !py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-200"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => setDeleteConfirm(note)}
+                          disabled={isSubmitting}
+                          className="flex-1 px-4 py-2 bg-error text-white rounded-md hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-200"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
         {/* Create Note Form */}
-        <section className="mb-12 bg-white dark:bg-accent/40 mx-auto !py-8 !px-4 !mt-12 !space-y-4 rounded-lg shadow-lg">
-          <h2 className="text-2xl !pt-2 font-semibold mb-6">Create New Note</h2>
-          <form onSubmit={handleCreateNote} className="space-y-6">
-            <div>
-              <label
-                htmlFor="create-title"
-                className="block text-3xl text-accent font-medium mb-2"
-              >
-                Title <span className="text-red-500">*</span>
-              </label>
-              <input
-                id="create-title"
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Enter note title (max 100 chars)"
-                maxLength={100}
-                className="w-full !px-4 !py-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 transition-all duration-200"
-                disabled={isSubmitting || !wallet.connected}
-              />
-              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                {title.length}/100 characters
-              </p>
-            </div>
-            <div>
-              <label
-                htmlFor="create-content"
-                className="block text-3xl text-accent font-medium mb-2"
-              >
-                Content <span className="text-red-500">*</span>
-              </label>
-              <textarea
-                id="create-content"
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                placeholder="Enter note content (max 1000 chars)"
-                maxLength={1000}
-                rows={5}
-                className="w-full !px-4 !py-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 resize-y transition-all duration-200"
-                disabled={isSubmitting || !wallet.connected}
-              />
-              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                {content.length}/1000 characters
-              </p>
-            </div>
-            <button
-              type="submit"
-              disabled={isSubmitting || !wallet.connected || !title.trim() || !content.trim()}
-              className="w-full sm:w-auto !px-6 !py-2 !mt-4 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-200"
-            >
-              {isSubmitting ? "Creating..." : "Create Note"}
-            </button>
-          </form>
-        </section>
-
-        {/* Load Notes Section */}
-        <section>
-          <div className="flex items-center justify-between !mb-6 !py-2">
-            <h2 className="text-2xl font-semibold">Your Notes</h2>
-            <button
-              onClick={loadNotes}
-              disabled={isSubmitting || !wallet.connected}
-              className="!px-6 !py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-200"
-            >
-              {loading ? "Loading..." : "Load Notes"}
-            </button>
-          </div>
-
-          {/* Notes Display */}
-          <div className="mt-6">
-            {loading && (
-              <div className="flex items-center justify-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-blue-600"></div>
-                <p className="ml-3 text-gray-600 dark:text-gray-400">
-                  Loading notes...
+        {wallet.connected && view === "create" && (
+          <section className="mb-12 bg-white dark:bg-accent/40 mx-auto !py-8 !px-4 !mt-12 !space-y-4 rounded-lg shadow-lg">
+            <h2 className="text-2xl !pt-2 font-semibold mb-6">Create New Note</h2>
+            <form onSubmit={handleCreateNote} className="space-y-6">
+              <div>
+                <label
+                  htmlFor="create-title"
+                  className="block text-3xl text-accent font-medium mb-2"
+                >
+                  Title <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="create-title"
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Enter note title (max 100 chars)"
+                  maxLength={100}
+                  className="w-full !px-4 !py-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 transition-all duration-200"
+                  disabled={isSubmitting}
+                />
+                <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                  {title.length}/100 characters
                 </p>
               </div>
-            )}
-            {!loading && notes.length === 0 && wallet.connected && (
-              <div className="text-center py-12 text-gray-600 dark:text-gray-400">
-                <p>No notes found. Create your first note above!</p>
+              <div>
+                <label
+                  htmlFor="create-content"
+                  className="block text-3xl text-accent font-medium mb-2"
+                >
+                  Content <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  id="create-content"
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  placeholder="Enter note content (max 1000 chars)"
+                  maxLength={1000}
+                  rows={5}
+                  className="w-full !px-4 !py-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 resize-y transition-all duration-200"
+                  disabled={isSubmitting}
+                />
+                <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                  {content.length}/1000 characters
+                </p>
               </div>
-            )}
-            {!loading && notes.length > 0 && (
-              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                {notes.map((note) => (
-                  <div
-                    key={note.publicKey.toBase58()}
-                    className="p-6 bg-white dark:bg-gray-800 rounded-lg shadow-sm hover:shadow-md transition-all duration-200"
-                  >
-                    <h3 className="text-xl font-semibold mb-3 line-clamp-1">
-                      {note.title}
-                    </h3>
-                    <p className="mb-4 text-gray-600 dark:text-gray-400 line-clamp-3">
-                      {note.content}
-                    </p>
-                    <div className="text-sm text-gray-500 dark:text-gray-400 space-y-1">
-                      <p>Author: {note.author.toBase58().slice(0, 8)}...</p>
-                      <p>
-                        Created: {new Date(note.created_at * 1000).toLocaleString()}
-                      </p>
-                      <p>
-                        Updated: {new Date(note.last_updated * 1000).toLocaleString()}
-                      </p>
-                    </div>
-                    <div className="mt-4 flex gap-3">
-                      <button
-                        onClick={() => {
-                          setEditingNote(note);
-                          setEditContent(note.content);
-                        }}
-                        disabled={isSubmitting || !wallet.connected}
-                        className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-200"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => setDeleteConfirm(note)}
-                        disabled={isSubmitting || !wallet.connected}
-                        className="flex-1 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-200"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                ))}
+              <div className="flex gap-3">
+                <button
+                  type="submit"
+                  disabled={isSubmitting || !title.trim() || !content.trim()}
+                  className="flex-1 !px-6 !py-2 !mt-4 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-200"
+                >
+                  {isSubmitting ? "Creating..." : "Create Note"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTitle("");
+                    setContent("");
+                    setView("notes");
+                  }}
+                  disabled={isSubmitting}
+                  className="flex-1 !px-6 !py-2 !mt-4 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 transition-all duration-200"
+                >
+                  Cancel
+                </button>
               </div>
-            )}
-          </div>
-        </section>
+            </form>
+          </section>
+        )}
 
         {/* Update Note Modal */}
         {editingNote && (
@@ -544,11 +567,11 @@ const Hero = () => {
         {/* Delete Confirmation Modal */}
         {deleteConfirm && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-gray-800 p-8 rounded-lg max-w-lg w-full shadow-xl">
+            <div className="bg-white dark:bg-gray-800 !p-8 rounded-lg max-w-lg w-full shadow-xl">
               <h3 className="text-2xl font-semibold mb-6">
                 Delete Note: {deleteConfirm.title}
               </h3>
-              <p className="mb-6 text-gray-600 dark:text-gray-400">
+              <p className="!mb-6 text-gray-600 dark:text-gray-400">
                 Are you sure you want to delete this note? This action cannot be undone.
               </p>
               <div className="flex gap-3">
@@ -560,13 +583,13 @@ const Hero = () => {
                     setDeleteConfirm(null);
                   }}
                   disabled={isSubmitting}
-                  className="flex-1 px-4 py-3 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-200"
+                  className="flex-1 !px-4 !py-3 bg-error text-white rounded-md hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-200"
                 >
                   {isSubmitting ? "Deleting..." : "Confirm Delete"}
                 </button>
                 <button
                   onClick={() => setDeleteConfirm(null)}
-                  className="flex-1 px-4 py-3 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 transition-all duration-200"
+                  className="flex-1 !px-4 !py-3 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 transition-all duration-200"
                 >
                   Cancel
                 </button>
