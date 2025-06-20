@@ -326,8 +326,8 @@ const Hero = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 text-gray-900 dark:text-gray-100">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <div className="min-h-screen text-white">
+      <div className="mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <header className="text-center mb-12">
           <h1 className="text-4xl sm:text-5xl font-bold tracking-tight">
             Solana Notes
@@ -339,21 +339,21 @@ const Hero = () => {
 
         {/* Wallet Connection Check */}
         {!wallet.connected && (
-          <div className="mb-8 p-6 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded-lg shadow-sm">
-            <p className="text-yellow-800 dark:text-yellow-200">
+          <div className="mb-8 !py-2 !px-4 bg-secondary border border-yellow-200 rounded-lg shadow-sm">
+            <p className=" text-error">
               Please connect your wallet to use this app.
             </p>
           </div>
         )}
 
         {/* Create Note Form */}
-        <section className="mb-12 bg-white dark:bg-gray-800 p-8 rounded-lg shadow-lg">
-          <h2 className="text-2xl font-semibold mb-6">Create New Note</h2>
+        <section className="mb-12 bg-white dark:bg-accent/40 mx-auto !py-8 !px-4 !mt-12 !space-y-4 rounded-lg shadow-lg">
+          <h2 className="text-2xl !pt-2 font-semibold mb-6">Create New Note</h2>
           <form onSubmit={handleCreateNote} className="space-y-6">
             <div>
               <label
                 htmlFor="create-title"
-                className="block text-sm font-medium mb-2"
+                className="block text-3xl text-accent font-medium mb-2"
               >
                 Title <span className="text-red-500">*</span>
               </label>
@@ -364,7 +364,7 @@ const Hero = () => {
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="Enter note title (max 100 chars)"
                 maxLength={100}
-                className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 transition-all duration-200"
+                className="w-full !px-4 !py-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 transition-all duration-200"
                 disabled={isSubmitting || !wallet.connected}
               />
               <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
@@ -374,7 +374,7 @@ const Hero = () => {
             <div>
               <label
                 htmlFor="create-content"
-                className="block text-sm font-medium mb-2"
+                className="block text-3xl text-accent font-medium mb-2"
               >
                 Content <span className="text-red-500">*</span>
               </label>
@@ -385,7 +385,7 @@ const Hero = () => {
                 placeholder="Enter note content (max 1000 chars)"
                 maxLength={1000}
                 rows={5}
-                className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 resize-y transition-all duration-200"
+                className="w-full !px-4 !py-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 resize-y transition-all duration-200"
                 disabled={isSubmitting || !wallet.connected}
               />
               <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
@@ -395,7 +395,7 @@ const Hero = () => {
             <button
               type="submit"
               disabled={isSubmitting || !wallet.connected || !title.trim() || !content.trim()}
-              className="w-full sm:w-auto px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-200"
+              className="w-full sm:w-auto !px-6 !py-2 !mt-4 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-200"
             >
               {isSubmitting ? "Creating..." : "Create Note"}
             </button>
@@ -404,12 +404,12 @@ const Hero = () => {
 
         {/* Load Notes Section */}
         <section>
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center justify-between !mb-6 !py-2">
             <h2 className="text-2xl font-semibold">Your Notes</h2>
             <button
               onClick={loadNotes}
               disabled={isSubmitting || !wallet.connected}
-              className="px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-200"
+              className="!px-6 !py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-200"
             >
               {loading ? "Loading..." : "Load Notes"}
             </button>
