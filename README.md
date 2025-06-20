@@ -103,7 +103,7 @@ pub enum NotesError {
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/your-username/solana-notes-dapp.git
+git clone https://github.com/t9fiction/Solana-crud-note
 cd solana-notes-dapp
 ```
 
