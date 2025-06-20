@@ -130,7 +130,78 @@ const Hero = () => {
   };
 
   // Function to update a note
+  const updateNote = async (note: any, content: string) => {
+    const program = await getProgram();
+    if (!program) return;
+    if (!wallet.publicKey || !wallet.signTransaction) {
+      return null;
+    }
+    if (!content.trim()) {
+      setError("Content is required to update a note.");
+      return;
+    }
+    if (content.length > 1000) {
+      setError("Content must be less than 1000 characters.");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const noteAddress = await getNoteAddress(note.account.title);
+      if (!noteAddress) {
+        setError("Failed to get note address.");
+        return;
+      }
+      const tx = await program.methods.updateNote(content).accounts({
+        author: wallet.publicKey,
+        note: noteAddress,
+      }).rpc();
+
+      setMsg("Note updated successfully!");
+      setContent(""); // Clear content input
+      setError(null); // Clear any previous error
+      await loadNotes(); // Reload notes after update
+      console.log("Transaction Signature:", tx);
+    } catch (error) {
+      console.error("Error updating note:", error);
+      setError("Failed to update note. Please try again later.");
+    }
+    setLoading(false);
+  };
+  
+
   // Function to delete a note
+  const deleteNote = async (note: any) => {
+    const program = await getProgram();
+    if (!program) return;
+    if (!wallet.publicKey || !wallet.signTransaction) {
+      return null;
+    }
+    
+    setLoading(true);
+
+    try {
+      const noteAddress = await getNoteAddress(note.account.title);
+      if (!noteAddress) {
+        setError("Failed to get note address.");
+        return;
+      }
+      const tx = await program.methods.deleteNote().accounts({
+        author: wallet.publicKey,
+        note: noteAddress,
+      }).rpc();
+      setMsg("Note deleted successfully!");
+      setError(null); // Clear any previous error
+      await loadNotes(); // Reload notes after deletion
+
+      console.log(tx)
+    }catch (error) {
+      console.error("Error deleting note:", error);
+      setError("Failed to delete note. Please try again later.");
+    }
+    setLoading(false);
+  };
 
   console.log("Notes", notes);
   return (
@@ -146,9 +217,7 @@ const Hero = () => {
       {/* Wallet Connection Check */}
       {!wallet.connected && (
         <div className="mb-6 p-4 bg-yellow-50 border border-yellow-300 rounded text-yellow-800">
-          <p>
-            Please connect your wallet to use this app.
-          </p>
+          <p>Please connect your wallet to use this app.</p>
         </div>
       )}
 
@@ -179,11 +248,16 @@ const Hero = () => {
 
       {/* Create Note Form */}
       <div className="mb-8 p-6 border border-secondary rounded-lg shadow-sm bg-gray-50/50">
-        <h2 className="text-2xl font-semibold mb-4 text-foreground">Create New Note</h2>
-        
+        <h2 className="text-2xl font-semibold mb-4 text-foreground">
+          Create New Note
+        </h2>
+
         <div className="space-y-4">
           <div>
-            <label htmlFor="title" className="block text-sm font-medium mb-2 text-foreground">
+            <label
+              htmlFor="title"
+              className="block text-sm font-medium mb-2 text-foreground"
+            >
               Title <span className="text-error">*</span>
             </label>
             <input
@@ -201,7 +275,10 @@ const Hero = () => {
           </div>
 
           <div>
-            <label htmlFor="content" className="block text-sm font-medium mb-2 text-foreground">
+            <label
+              htmlFor="content"
+              className="block text-sm font-medium mb-2 text-foreground"
+            >
               Content <span className="text-error">*</span>
             </label>
             <textarea
@@ -249,13 +326,13 @@ const Hero = () => {
               <p className="ml-3 text-secondary">Loading notes...</p>
             </div>
           )}
-          
+
           {!loading && notes.length === 0 && wallet.connected && (
             <div className="text-center py-8 text-secondary">
               <p>No notes found. Create your first note above!</p>
             </div>
           )}
-          
+
           {!loading && notes.length > 0 && (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {notes.map((note, index) => (
@@ -270,14 +347,14 @@ const Hero = () => {
                     {note.content}
                   </p>
                   <div className="text-sm space-y-1 text-secondary">
+                    <p>Author: {note.author.toBase58().slice(0, 8)}...</p>
                     <p>
-                      Author: {note.author.toBase58().slice(0, 8)}...
+                      Created:{" "}
+                      {new Date(note.created_at * 1000).toLocaleString()}
                     </p>
                     <p>
-                      Created: {new Date(note.created_at * 1000).toLocaleString()}
-                    </p>
-                    <p>
-                      Updated: {new Date(note.last_updated * 1000).toLocaleString()}
+                      Updated:{" "}
+                      {new Date(note.last_updated * 1000).toLocaleString()}
                     </p>
                   </div>
                 </div>
