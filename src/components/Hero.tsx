@@ -1,7 +1,6 @@
 "use client";
 import { IDL, PROGRAM_ID } from "@/constants";
 import { AnchorProvider, Program, Idl } from "@project-serum/anchor";
-import { set } from "@project-serum/anchor/dist/cjs/utils/features";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { PublicKey, SystemProgram } from "@solana/web3.js";
 import React from "react";
@@ -135,50 +134,160 @@ const Hero = () => {
 
   console.log("Notes", notes);
   return (
-    <div>
-      <h1 className="text-4xl font-bold mb-4">
+    <div className="max-w-4xl mx-auto p-6 bg-background text-foreground">
+      <h1 className="text-4xl font-bold mb-4 text-foreground">
         Welcome to the Solana Notes App
       </h1>
-      <p className="text-lg mb-6">
+      <p className="text-lg mb-6 text-secondary">
         This app allows you to create, update, and delete notes on the Solana
         blockchain.
       </p>
-      <button
-        onClick={loadNotes}
-        className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-      >
-        Load Notes
-      </button>
-      <div className="mt-6">
-        {loading && <p className="text-gray-500">Loading notes...</p>}
-        {!loading && notes.length === 0 && (
-          <p className="text-gray-500">No notes found.</p>
-        )}
-        {!loading && notes.length > 0 && (
-          <div className="space-y-4">
-            {notes.map((note, index) => (
-              <div
-                key={index} // Use author PublicKey as key
-                className="p-4 border rounded shadow-sm"
-              >
-                <h2 className="text-xl font-semibold">{note.title}</h2>
-                <p className="text-gray-700">{note.content}</p>
-                <p className="text-sm text-gray-500 mt-2">
-                  Author: {note.author.toBase58().slice(0, 8)}...
-                </p>
-                <p className="text-sm text-gray-500">
-                  Created: {new Date(note.created_at * 1000).toLocaleString()}
-                </p>
-                <p className="text-sm text-gray-500">
-                  Last Updated:{" "}
-                  {new Date(note.last_updated * 1000).toLocaleString()}
-                </p>
-              </div>
-            ))}
+
+      {/* Wallet Connection Check */}
+      {!wallet.connected && (
+        <div className="mb-6 p-4 bg-yellow-50 border border-yellow-300 rounded text-yellow-800">
+          <p>
+            Please connect your wallet to use this app.
+          </p>
+        </div>
+      )}
+
+      {/* Error/Success Messages */}
+      {error && (
+        <div className="mb-4 p-4 bg-red-50 border border-error rounded">
+          <p className="text-error">{error}</p>
+          <button
+            onClick={() => setError(null)}
+            className="mt-2 text-sm text-error underline hover:no-underline"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {msg && (
+        <div className="mb-4 p-4 bg-green-50 border border-success rounded">
+          <p className="text-success">{msg}</p>
+          <button
+            onClick={() => setMsg(null)}
+            className="mt-2 text-sm text-success underline hover:no-underline"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {/* Create Note Form */}
+      <div className="mb-8 p-6 border border-secondary rounded-lg shadow-sm bg-gray-50/50">
+        <h2 className="text-2xl font-semibold mb-4 text-foreground">Create New Note</h2>
+        
+        <div className="space-y-4">
+          <div>
+            <label htmlFor="title" className="block text-sm font-medium mb-2 text-foreground">
+              Title <span className="text-error">*</span>
+            </label>
+            <input
+              id="title"
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Enter note title (max 100 characters)"
+              maxLength={100}
+              className="w-full px-3 py-2 border border-secondary rounded-md bg-background text-foreground placeholder-secondary focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-colors"
+            />
+            <p className="text-sm mt-1 text-secondary">
+              {title.length}/100 characters
+            </p>
           </div>
-        )}
+
+          <div>
+            <label htmlFor="content" className="block text-sm font-medium mb-2 text-foreground">
+              Content <span className="text-error">*</span>
+            </label>
+            <textarea
+              id="content"
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              placeholder="Enter note content (max 1000 characters)"
+              maxLength={1000}
+              rows={5}
+              className="w-full px-3 py-2 border border-secondary rounded-md bg-background text-foreground placeholder-secondary focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-vertical transition-colors"
+            />
+            <p className="text-sm mt-1 text-secondary">
+              {content.length}/1000 characters
+            </p>
+          </div>
+
+          <button
+            onClick={createNote}
+            disabled={!wallet.connected || !title.trim() || !content.trim()}
+            className="px-6 py-2 text-white rounded-md transition-colors disabled:cursor-not-allowed bg-success hover:bg-success/90 disabled:bg-secondary disabled:opacity-50"
+          >
+            Create Note
+          </button>
+        </div>
       </div>
-      <p className="mt-4 text-sm text-gray-500">
+
+      {/* Load Notes Section */}
+      <div className="mb-6">
+        <div className="flex items-center gap-4 mb-4">
+          <h2 className="text-2xl font-semibold text-foreground">Your Notes</h2>
+          <button
+            onClick={loadNotes}
+            disabled={!wallet.connected}
+            className="px-4 py-2 text-white rounded-md transition-colors disabled:cursor-not-allowed bg-primary hover:bg-primary/90 disabled:bg-secondary disabled:opacity-50"
+          >
+            {loading ? "Loading..." : "Load Notes"}
+          </button>
+        </div>
+
+        {/* Notes Display */}
+        <div className="mt-6">
+          {loading && (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              <p className="ml-3 text-secondary">Loading notes...</p>
+            </div>
+          )}
+          
+          {!loading && notes.length === 0 && wallet.connected && (
+            <div className="text-center py-8 text-secondary">
+              <p>No notes found. Create your first note above!</p>
+            </div>
+          )}
+          
+          {!loading && notes.length > 0 && (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {notes.map((note, index) => (
+                <div
+                  key={index}
+                  className="p-4 border border-secondary rounded-lg shadow-sm bg-white/5 backdrop-blur-sm hover:shadow-md hover:bg-white/10 transition-all duration-200"
+                >
+                  <h3 className="text-xl font-semibold mb-2 text-foreground">
+                    {note.title}
+                  </h3>
+                  <p className="mb-3 line-clamp-3 text-foreground">
+                    {note.content}
+                  </p>
+                  <div className="text-sm space-y-1 text-secondary">
+                    <p>
+                      Author: {note.author.toBase58().slice(0, 8)}...
+                    </p>
+                    <p>
+                      Created: {new Date(note.created_at * 1000).toLocaleString()}
+                    </p>
+                    <p>
+                      Updated: {new Date(note.last_updated * 1000).toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <p className="mt-8 text-sm text-center text-secondary">
         Note: Ensure your wallet is connected to the Solana network.
       </p>
     </div>
