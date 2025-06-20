@@ -18,7 +18,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Solana Wallet App",
-  description: "A Next.js app integrated with Solana wallet for seamless blockchain interactions.",
+  description:
+    "A Next.js app integrated with Solana wallet for seamless blockchain interactions.",
 };
 
 export default function RootLayout({
@@ -28,13 +29,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+      >
         <WalletContextProvider>
-          <div className="">
-          <Navbar />
+          <div className="h-16">
+            <Navbar />
           </div>
-          {children}
-          </WalletContextProvider>
+          <div className="!py-12 !px-8 sm:!px-12 lg:!px-16 bg-background">{children}</div>
+        </WalletContextProvider>
       </body>
     </html>
   );
